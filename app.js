@@ -22,17 +22,15 @@ const harvestNumber = config.harvestNumber;
 const tokenAddress = config.tokenAddress;
 const tokenAbi = config.tokenAbi;
 
-app.get('/', (req, res) => {
-    res.send('Hello World!')
-})
-
 app.listen(port, () => {
-    console.log(`Reinvest On BSC app listening at http://localhost:${port}`)
+    console.log(`Auto-Reinvest on BSC app listening at http://localhost:${port}`)
 
-    checkToReinvest(amountOfPool);
+    console.log(`Recheck every : ${millisecondToCheck / 60000} mins`);
+
+    checkToReinvest(amountOfPool, wallet);
 
     setInterval(async () => {
-        await checkToReinvest(amountOfPool);
+        await checkToReinvest(amountOfPool, wallet);
     }, millisecondToCheck);
 })
 
@@ -54,13 +52,17 @@ const harvestReward = async (poolNumber, signer) => {
     const transaction = await contractWithSigner.deposit(poolNumber, 0, options);
     await provider.waitForTransaction(transaction.hash);
     const response = await provider.getTransaction(transaction.hash);
-    console.log(`response : ${JSON.stringify(response, null, 4)}`);
+    console.log(`Harvest Tx hash : ${response.hash}`);
 }
 
-const checkToReinvest = async (amountOfPool) => {
+const checkToReinvest = async (amountOfPool, wallet) => {
     let reinvestBalance = 0;
     reinvestBalance = await getTokenBalance(tokenAddress, tokenAbi, wallet.address);
-    console.log(`Current Token amount in Wallet : ${toReadableNumber(reinvestBalance)}`);
+
+    console.log(`---------------------------------------------------------------`);
+    console.log(`Current native token amount in wallet : ${toReadableNumber(await getBalance(wallet.address))}`);
+    console.log(`Current token amount in wallet : ${toReadableNumber(reinvestBalance)}`);
+    console.log(`Current staking amount : ${toReadableNumber(await getStakingBalance(0, wallet.address))}`);
 
     if (toReadableNumber(reinvestBalance) > harvestNumber) {
         await enterStaking(reinvestBalance, wallet);
@@ -77,7 +79,9 @@ const checkToReinvest = async (amountOfPool) => {
         pendingRewards += parseFloat(toReadableNumber(reward));
     }
 
-    console.log(`All Pending rewards : ${pendingRewards}`);
+    console.log(`All pending rewards : ${pendingRewards}`);
+    console.log(`Will reinvest when pending rewards ${pendingRewards} > ${harvestNumber} `);
+    console.log(`---------------------------------------------------------------`);
 
     if (pendingRewards > harvestNumber) {
         reinvestBalance = 0;
@@ -92,6 +96,8 @@ const checkToReinvest = async (amountOfPool) => {
         console.log(`Reinvest Token amount : ${reinvestBalance}`);
 
         await enterStaking(reinvestBalance, wallet);
+
+        console.log(`Current staking amount : ${toReadableNumber(await getStakingBalance(0, wallet.address))}`);
     }
 }
 
@@ -101,7 +107,12 @@ const enterStaking = async (amount, signer) => {
     const transaction = await contractWithSigner.enterStaking(amount, options);
     await provider.waitForTransaction(transaction.hash);
     const response = await provider.getTransaction(transaction.hash);
-    console.log(`response : ${JSON.stringify(response, null, 4)}`);
+    console.log(`Reinvest Tx hash : ${response.hash}`);
+}
+
+const getStakingBalance = async (poolNumber, address) => {
+    const balance = await farmContract.userInfo(poolNumber, address);
+    return balance.amount;
 }
 
 const getTokenBalance = async (tokenAddress, abi, address) => {
