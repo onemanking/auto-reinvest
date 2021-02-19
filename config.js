@@ -13,6 +13,14 @@ const config = {
     harvestNumber: process.env.HARVEST_NUMBER,
     tokenAbi: process.env.TOKEN_ABI,
     tokenAddress: process.env.TOKEN_ADDRESS,
+    swapAbi: process.env.SWAP_ABI,
+    swapAddress: process.env.SWAP_ADDRESS,
+    pairTokenAddress: process.env.PAIR_TOKEN_ADDRESS,
+    lpTokenAddress: process.env.LP_ADDRESS,
+    lpTokenAbi: process.env.LP_ABI,
+    pendingRewardFnName: process.env.PENDING_REWARD_NAME,
+    slippagePercent: process.env.SLIPPAGE_PERCENT,
+    reinvestPool: process.env.REINVEST_POOL,
 }
 
 module.exports = config
