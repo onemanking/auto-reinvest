@@ -75,7 +75,7 @@ const deposit = async (poolNumber, amount, signer) => {
     const options = getTransactionOptions();
     const transaction = await contractWithSigner.deposit(poolNumber, amount, options);
 
-    await logTransaction(`Harvest Tx hash`, transaction)
+    await logTransaction(`Deposit Tx hash`, transaction)
 }
 
 const checkToReinvest = async (amountOfPool, reinvestPool, wallet) => {
@@ -120,7 +120,7 @@ const checkToReinvest = async (amountOfPool, reinvestPool, wallet) => {
             if (reward <= 0) continue;
             await harvestReward(i, wallet);
             const balance = await getTokenBalance(tokenAddress, tokenAbi, wallet.address)
-            harvestBalance += balance;
+            harvestBalance += parseInt(balance.toString());
         }
 
         console.log(`Harvest Token amount : ${harvestBalance}`);
@@ -149,9 +149,7 @@ const getAmountOut = async (amountIn, paths) => {
 
 const swapToken = async (amountIn, slippagePercentage, paths, deadline, signer) => {
     const getAmountRes = await getAmountOut(amountIn.toString(), paths);
-    console.log(`GetAmountRes : ${getAmountRes}`);
     const amountOutMin = getAmountRes[1] - (getAmountRes[1] * slippagePercentage);
-    console.log(`AmountOutMin : ${amountOutMin}`);
     const contractWithSigner = swapContract.connect(signer);
     const options = getTransactionOptions();
     const transaction = await contractWithSigner.swapExactTokensForETH(getAmountRes[0], amountOutMin, paths, signer.address, deadline, options);
@@ -162,11 +160,11 @@ const swapToken = async (amountIn, slippagePercentage, paths, deadline, signer) 
 const addLiquidityETH = async (tokenAddress, amountIn, slippagePercentage, signer) => {
     const contractWithSigner = swapContract.connect(signer);
     const amountTokenMin = amountIn * slippagePercentage;
-    console.log(`AmountTokenMin : ${amountTokenMin}`);
-    const getAmountOutRes = await getAmountOut(amountTokenMin, [tokenAddress, pairTokenAddress]);
-    console.log(`AmountMinEth : ${getAmountOutRes[0]}`);
-    const options = getTransactionOptions();
-    const transaction = await contractWithSigner.addLiquidityETH(tokenAddress, amountIn.toString(), amountTokenMin.toString(), getAmountOutRes[0].toString(), signer.address, options);
+    const getAmountOutRes = await getAmountOut(amountIn, [tokenAddress, pairTokenAddress]);
+    const amountETHMin = getAmountOutRes[1];
+    const deadline = getDeadlineTime();
+    const options = { gasLimit: 450000, value: amountETHMin };
+    const transaction = await contractWithSigner.addLiquidityETH(tokenAddress, amountIn.toString(), amountTokenMin.toString(), amountETHMin, signer.address, deadline, options);
 
     await logTransaction(`Add liquidity Tx hash`, transaction);
 }
