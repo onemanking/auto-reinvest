@@ -3,6 +3,7 @@ const express = require('express')
 const app = express()
 const config = require('./config');
 const port = config.port;
+const fs = require('fs');
 
 const { ethers } = require('ethers');
 
@@ -11,7 +12,7 @@ const pk = config.privateKey;
 
 const wallet = new ethers.Wallet(pk, provider);
 
-const farmAbi = config.farmAbi;
+const farmAbi = JSON.parse(fs.readFileSync(config.farmAbi, 'utf8'));
 const farmAddress = config.farmAddress;
 const farmContract = new ethers.Contract(farmAddress, farmAbi, provider);
 const pendingRewardFnName = config.pendingRewardFnName;
@@ -22,17 +23,17 @@ const harvestNumber = config.harvestNumber;
 const reinvestPool = config.reinvestPool;
 
 const tokenAddress = config.tokenAddress;
-const tokenAbi = config.tokenAbi;
+const tokenAbi = JSON.parse(fs.readFileSync(config.tokenAbi, 'utf8'));;
 
 const swapAddress = config.swapAddress;
-const swapAbi = config.swapAbi;
+const swapAbi = JSON.parse(fs.readFileSync(config.swapAbi, 'utf8'));
 const swapContract = new ethers.Contract(swapAddress, swapAbi, provider);
 const slippagePercent = config.slippagePercent;
 
 const pairTokenAddress = config.pairTokenAddress;
 
 const lpTokenAddress = config.lpTokenAddress;
-const lpTokenAbi = config.lpTokenAbi;
+const lpTokenAbi = JSON.parse(fs.readFileSync(config.lpTokenAbi, 'utf8'));
 
 let tokenName = '';
 
