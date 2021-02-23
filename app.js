@@ -154,7 +154,7 @@ const swapToken = async (amountIn, slippagePercentage, paths, deadline, signer) 
     const amountOutMin = getAmountRes[1] - (getAmountRes[1] * slippagePercentage);
     const contractWithSigner = swapContract.connect(signer);
     const options = getTransactionOptions();
-    const transaction = await contractWithSigner.swapExactTokensForETH(getAmountRes[0], amountOutMin, paths, signer.address, deadline, options);
+    const transaction = await contractWithSigner.swapExactTokensForETH(getAmountRes[0], amountOutMin.toString(), paths, signer.address, deadline, options);
 
     await logTransaction(`Swap Tx hash`, transaction);
 }
