@@ -29,6 +29,7 @@ const swapAddress = config.swapAddress;
 const swapAbi = JSON.parse(fs.readFileSync(config.swapAbi, 'utf8'));
 const swapContract = new ethers.Contract(swapAddress, swapAbi, provider);
 const slippagePercent = config.slippagePercent;
+const swapCutOffPercent = config.swapCutOffPercent;
 
 const pairTokenAddress = config.pairTokenAddress;
 
@@ -94,7 +95,7 @@ const checkToReinvest = async (amountOfPool, reinvestPool, wallet) => {
 
     if (toReadableNumber(harvestBalance) > harvestNumber) {
         console.log(`Found token reward ${toReadableNumber(harvestBalance)} left in wallet, start reinvest`);
-        await reinvest(getSwapBalance(harvestBalance), reinvestPool, wallet);
+        await reinvest(getSwapBalance(harvestBalance, swapCutOffPercent), reinvestPool, wallet);
     }
 
     let pendingRewards = 0
@@ -126,7 +127,7 @@ const checkToReinvest = async (amountOfPool, reinvestPool, wallet) => {
 
         console.log(`Harvest Token amount : ${harvestBalance}`);
 
-        await reinvest(getSwapBalance(harvestBalance), reinvestPool, wallet);
+        await reinvest(getSwapBalance(harvestBalance, swapCutOffPercent), reinvestPool, wallet);
 
         console.log(`Current staking amount : ${toReadableNumber(await getStakingBalance(1, wallet.address))}`);
     }
@@ -213,9 +214,9 @@ const logTransaction = async (logText, transaction) => {
     console.log(`${logText} : ${response.hash}`);
 }
 
-const getSwapBalance = (harvestBalance) => {
+const getSwapBalance = (harvestBalance, cutOffPercent) => {
     const divBalance = (harvestBalance / 2);
-    const percentage = 8 / 100;
+    const percentage = cutOffPercent / 100;
     const swapBalance = divBalance + (divBalance * (percentage));
     return swapBalance;
 }

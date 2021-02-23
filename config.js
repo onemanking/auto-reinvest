@@ -21,6 +21,7 @@ const config = {
     pendingRewardFnName: process.env.PENDING_REWARD_NAME,
     slippagePercent: process.env.SLIPPAGE_PERCENT,
     reinvestPool: process.env.REINVEST_POOL,
+    swapCutOffPercent: process.env.SWAP_CUT_OFF_PERCENT,
 }
 
 module.exports = config
