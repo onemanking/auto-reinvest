@@ -22,8 +22,8 @@ const amountOfPool = config.numberOfPool;
 const harvestNumber = config.harvestNumber;
 const reinvestPool = config.reinvestPool;
 
-const tokenAddress = config.tokenAddress;
-const tokenAbi = JSON.parse(fs.readFileSync(config.tokenAbi, 'utf8'));;
+const farmTokenAddress = config.farmTokenAddress;
+const farmTokenAbi = JSON.parse(fs.readFileSync(config.farmTokenAbi, 'utf8'));;
 
 const swapAddress = config.swapAddress;
 const swapAbi = JSON.parse(fs.readFileSync(config.swapAbi, 'utf8'));
@@ -31,7 +31,9 @@ const swapContract = new ethers.Contract(swapAddress, swapAbi, provider);
 const slippagePercent = config.slippagePercent;
 const swapCutOffPercent = config.swapCutOffPercent;
 
-const pairTokenAddress = config.pairTokenAddress;
+const firstReinvestTokenAddress = config.firstReinvestTokenAddress;
+const firstReinvestTokenAbi = JSON.parse(fs.readFileSync(config.firstReinvestTokenAbi, 'utf8'));;
+const secoundReinvestTokenAddress = config.secoundReinvestTokenAddress;
 
 const lpTokenAddress = config.lpTokenAddress;
 const lpTokenAbi = JSON.parse(fs.readFileSync(config.lpTokenAbi, 'utf8'));
@@ -43,7 +45,7 @@ app.listen(port, async () => {
 
     console.log(`Recheck every : ${millisecondToCheck / 60000} mins`);
 
-    tokenName = await getTokenName(tokenAddress, tokenAbi);
+    tokenName = await getTokenName(farmTokenAddress, farmTokenAbi);
 
     checkToReinvest(amountOfPool, reinvestPool, wallet);
 
@@ -62,14 +64,21 @@ const getPendingRewards = async (poolNumber, address, fnName) => {
     return balance;
 }
 
-const toReadableNumber = (number) => ethers.utils.formatEther(number);
+const toReadableNumber = (number) => ethers.utils.formatEther(number.toString());
 
 const harvestReward = async (poolNumber, signer) => {
     const contractWithSigner = farmContract.connect(signer);
     const options = getTransactionOptions();
     const transaction = await contractWithSigner.deposit(poolNumber, 0, options);
 
-    await logTransaction(`Harvest Tx hash`, transaction)
+    const receipt = await getTransactionReceipt(transaction);
+    if (receipt.status !== 1) {
+        console.log("Transaction failed!!! re-do it");
+        await harvestReward(poolNumber, signer)
+    }
+
+    const harvestBalance = await getTokenBalance(farmTokenAddress, farmTokenAbi, wallet.address);
+    console.log(`Harvested Reward : ${toReadableNumber(harvestBalance)} `);
 }
 
 const deposit = async (poolNumber, amount, signer) => {
@@ -77,12 +86,18 @@ const deposit = async (poolNumber, amount, signer) => {
     const options = getTransactionOptions();
     const transaction = await contractWithSigner.deposit(poolNumber, amount, options);
 
-    await logTransaction(`Deposit Tx hash`, transaction)
+    const receipt = await getTransactionReceipt(transaction);
+    if (receipt.status !== 1) {
+        console.log("Transaction failed!!! re-do it");
+        await deposit(poolNumber, amount, signer);
+    }
+
+    console.log(`Deposit amount: ${toReadableNumber(amount)} `);
 }
 
 const checkToReinvest = async (amountOfPool, reinvestPool, wallet) => {
     let harvestBalance = 0;
-    harvestBalance = await getTokenBalance(tokenAddress, tokenAbi, wallet.address);
+    harvestBalance = await getTokenBalance(farmTokenAddress, farmTokenAbi, wallet.address);
 
     console.log(`---------------------------------------------------------------`);
     console.log(`******${tokenName}******`);
@@ -90,7 +105,9 @@ const checkToReinvest = async (amountOfPool, reinvestPool, wallet) => {
     console.log(`Current ${tokenName} token amount in wallet : ${toReadableNumber(harvestBalance)}`);
 
     for (let i = 0; i <= amountOfPool; i++) {
-        console.log(`Current staking amount in Pool ${i} : ${toReadableNumber(await getStakingBalance(i, wallet.address))}`);
+        const currentStaking = await getStakingBalance(i, wallet.address)
+        if (currentStaking <= 0) continue;
+        console.log(`Current staking amount in Pool ${i} : ${toReadableNumber(currentStaking)}`);
     }
 
     if (toReadableNumber(harvestBalance) > harvestNumber) {
@@ -103,8 +120,8 @@ const checkToReinvest = async (amountOfPool, reinvestPool, wallet) => {
     for (let i = 1; i <= amountOfPool; i++) {
         const reward = await getPendingRewards(i, wallet.address, pendingRewardFnName);
 
-        console.log(`Pending reward in Pool ${i} : ${toReadableNumber(reward)}`);
         if (reward <= 0) continue;
+        console.log(`Pending reward in Pool ${i} : ${toReadableNumber(reward)}`);
 
         pendingRewards += parseFloat(toReadableNumber(reward));
     }
@@ -114,32 +131,35 @@ const checkToReinvest = async (amountOfPool, reinvestPool, wallet) => {
     console.log(`---------------------------------------------------------------`);
 
     if (pendingRewards > harvestNumber) {
-        console.log(`Start harvest`);
+        await harvestAllReward(amountOfPool, wallet);
 
-        harvestBalance = 0;
-        for (let i = 1; i <= amountOfPool; i++) {
-            const reward = await getPendingRewards(i, wallet.address, pendingRewardFnName);
-            if (reward <= 0) continue;
-            await harvestReward(i, wallet);
-            const balance = await getTokenBalance(tokenAddress, tokenAbi, wallet.address)
-            harvestBalance += parseInt(balance.toString());
-        }
+        harvestBalance = await getTokenBalance(farmTokenAddress, farmTokenAbi, wallet.address)
 
-        console.log(`Harvest Token amount : ${harvestBalance}`);
+        console.log(`Harvest Token amount : ${toReadableNumber(harvestBalance)}`);
 
-        await reinvest(getSwapBalance(harvestBalance, swapCutOffPercent), reinvestPool, wallet);
+        await reinvest(harvestBalance, reinvestPool, wallet);
 
-        console.log(`Current staking amount : ${toReadableNumber(await getStakingBalance(1, wallet.address))}`);
+        console.log(`Current staking amount : ${toReadableNumber(await getStakingBalance(reinvestPool, wallet.address))}`);
     }
 }
 
-const reinvest = async (swapBalance, poolNumber, wallet) => {
-    console.log(`Start reinvest in Pool ${poolNumber}`);
+const harvestAllReward = async (amountOfPool, wallet) => {
+    console.log(`Start harvest`);
+    for (let i = 1; i <= amountOfPool; i++) {
+        const reward = await getPendingRewards(i, wallet.address, pendingRewardFnName);
+        if (reward <= 0) continue;
+        await harvestReward(i, wallet);
+    }
+}
+
+const reinvest = async (harvestBalance, poolNumber, wallet) => {
+    console.log(`Start reinvest in Pool ${poolNumber} with ${tokenName}`);
 
     const deadline = getDeadlineTime();
-    await swapToken(swapBalance, getSlippagePercentage(slippagePercent), [tokenAddress, pairTokenAddress], deadline, wallet);
-    const reinvestBalance = await getTokenBalance(tokenAddress, tokenAbi, wallet.address);
-    await addLiquidityETH(tokenAddress, reinvestBalance, getSlippagePercentage(slippagePercent), wallet);
+    const swapBalance = getSwapBalance(harvestBalance, swapCutOffPercent);
+    await swapToken(swapBalance, getSlippagePercentage(slippagePercent), [farmTokenAddress, secoundReinvestTokenAddress], deadline, wallet);
+    const reinvestBalance = await getTokenBalance(farmTokenAddress, farmTokenAbi, wallet.address);
+    await addLiquidityETH(farmTokenAddress, reinvestBalance, getSlippagePercentage(slippagePercent), wallet);
     const lpBalance = await getTokenBalance(lpTokenAddress, lpTokenAbi, wallet.address);
     await deposit(poolNumber, lpBalance.toString(), wallet);
 }
@@ -155,20 +175,32 @@ const swapToken = async (amountIn, slippagePercentage, paths, deadline, signer) 
     const contractWithSigner = swapContract.connect(signer);
     const options = getTransactionOptions();
     const transaction = await contractWithSigner.swapExactTokensForETH(getAmountRes[0], amountOutMin.toString(), paths, signer.address, deadline, options);
+    const receipt = await getTransactionReceipt(transaction);
 
-    await logTransaction(`Swap Tx hash`, transaction);
+    if (receipt.status !== 1) {
+        console.log("Transaction failed!!! re-do it");
+        await swapToken(amountIn, slippagePercentage, paths, deadline, signer);
+    }
+
+    console.log(`Swap ${tokenName} : ${toReadableNumber(amountIn)} for ${toReadableNumber(amountOutMin)} native token`);
 }
 
 const addLiquidityETH = async (tokenAddress, amountIn, slippagePercentage, signer) => {
     const contractWithSigner = swapContract.connect(signer);
     const amountTokenMin = amountIn * slippagePercentage;
-    const getAmountOutRes = await getAmountOut(amountIn, [tokenAddress, pairTokenAddress]);
+    const getAmountOutRes = await getAmountOut(amountIn, [tokenAddress, secoundReinvestTokenAddress]);
     const amountETHMin = getAmountOutRes[1];
     const deadline = getDeadlineTime();
     const options = { gasLimit: 450000, value: amountETHMin };
     const transaction = await contractWithSigner.addLiquidityETH(tokenAddress, amountIn.toString(), amountTokenMin.toString(), amountETHMin, signer.address, deadline, options);
 
-    await logTransaction(`Add liquidity Tx hash`, transaction);
+    const receipt = await getTransactionReceipt(transaction);
+    if (receipt.status !== 1) {
+        console.log("Transaction failed!!! re-do it");
+        await addLiquidityETH(tokenAddress, amountIn, slippagePercentage, signer);
+    }
+
+    console.log(`Add liquidity : [${tokenName} : ${toReadableNumber(amountIn)}, Native : ${toReadableNumber(amountETHMin)}]`);
 }
 
 const getSlippagePercentage = (slippage) => (100 - slippage) / 100;
@@ -179,7 +211,11 @@ const enterStaking = async (amount, signer) => {
     const options = getTransactionOptions();
     const transaction = await contractWithSigner.enterStaking(amount, options);
 
-    await logTransaction(`Reinvest Tx hash`, transaction);
+    const receipt = await getTransactionReceipt(transaction);
+    if (receipt.status !== 1) {
+        console.log("Transaction failed!!! re-do it");
+        await enterStaking(amount, signer);
+    }
 }
 
 const getStakingBalance = async (poolNumber, address) => {
@@ -191,6 +227,16 @@ const getTokenBalance = async (tokenAddress, abi, address) => {
     const contract = new ethers.Contract(tokenAddress, abi, provider);
     const balance = await contract.balanceOf(address);
     return balance;
+}
+
+const getToken0FromLP = async (lpAddress, abi) => {
+    const contract = new ethers.Contract(lpAddress, abi, provider);
+    return await contract.token0();
+}
+
+const getToken1FromLP = async (lpAddress, abi) => {
+    const contract = new ethers.Contract(lpAddress, abi, provider);
+    return await contract.token1();
 }
 
 const getTokenName = async (tokenAddress, abi) => {
@@ -208,15 +254,20 @@ const getDeadlineTime = () => {
     return date.getTime();
 }
 
-const logTransaction = async (logText, transaction) => {
-    await provider.waitForTransaction(transaction.hash);
-    const response = await provider.getTransaction(transaction.hash);
-    console.log(`${logText} : ${response.hash}`);
+const getSwapBalance = (allBalance, cutOffPercent) => {
+    console.log(`Balance : ${toReadableNumber(allBalance)}`)
+    const divBalance = (allBalance / 2);
+    console.log(`DivBalance : ${toReadableNumber(divBalance)}`)
+    const percentage = cutOffPercent / 100;
+    console.log(`Cut off Percentage : ${cutOffPercent}%`)
+    const cutOffBalance = divBalance * percentage;
+    console.log(`Cut off Balance : ${toReadableNumber(cutOffBalance)}`)
+    const swapBalance = divBalance + cutOffBalance;
+    console.log(`SwapBalance : ${toReadableNumber(swapBalance)}`)
+    return swapBalance;
 }
 
-const getSwapBalance = (harvestBalance, cutOffPercent) => {
-    const divBalance = (harvestBalance / 2);
-    const percentage = cutOffPercent / 100;
-    const swapBalance = divBalance + (divBalance * (percentage));
-    return swapBalance;
+const getTransactionReceipt = async (transaction) => {
+    await provider.waitForTransaction(transaction.hash);
+    return await provider.getTransactionReceipt(transaction.hash);
 }

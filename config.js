@@ -11,17 +11,19 @@ const config = {
     millisecondToCheck: process.env.MILLISECOND_TO_CHECK,
     numberOfPool: process.env.NUMBER_OF_POOL,
     harvestNumber: process.env.HARVEST_NUMBER,
-    tokenAbi: process.env.TOKEN_ABI,
-    tokenAddress: process.env.TOKEN_ADDRESS,
+    farmTokenAbi: process.env.FARM_TOKEN_ABI,
+    farmTokenAddress: process.env.FARM_TOKEN_ADDRESS,
     swapAbi: process.env.SWAP_ABI,
     swapAddress: process.env.SWAP_ADDRESS,
-    pairTokenAddress: process.env.PAIR_TOKEN_ADDRESS,
+    secoundReinvestTokenAddress: process.env.SECOUND_REINVEST_TOKEN_ADDRESS,
     lpTokenAddress: process.env.LP_ADDRESS,
     lpTokenAbi: process.env.LP_ABI,
     pendingRewardFnName: process.env.PENDING_REWARD_NAME,
     slippagePercent: process.env.SLIPPAGE_PERCENT,
     reinvestPool: process.env.REINVEST_POOL,
     swapCutOffPercent: process.env.SWAP_CUT_OFF_PERCENT,
+    firstReinvestTokenAbi: process.env.FIRST_REINVEST_TOKEN_ABI,
+    firstReinvestTokenAddress: process.env.FIRST_REINVEST_TOKEN_ADDRESS,
 }
 
 module.exports = config
